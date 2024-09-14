@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Text.RegularExpressions;
 using CodingSeb.ExpressionEvaluator;
+using System.Diagnostics.Eventing.Reader;
 
 namespace BuildGraphicWindow
 {
@@ -24,24 +25,52 @@ namespace BuildGraphicWindow
         //===========================================
 
         private Graphics g;
+        public GraphForm _graphForm;
 
         public Form1()
         {
             InitializeComponent();
             g = this.CreateGraphics();
             //this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.Form1_MouseClick);
+
+            comboBox1.SelectedIndex = 1;
+
+            _graphForm = new GraphForm();
+            AddOwnedForm(_graphForm);
         }
          
-        private void Form1_MouseClick(object sender, MouseEventArgs e)
+        private void PrintGraphButton_Click (object sender, MouseEventArgs e)
         {
-            Pen pen = new Pen(Color.SlateBlue);
-            SolidBrush solid = new SolidBrush(Color.Red);
-            g.FillEllipse(solid, e.X, e.Y, 5, 5);
-            g.DrawEllipse(pen, e.X, e.Y, 5, 5);
-
-            solid.Dispose();
-            pen.Dispose();
+            _graphForm._function = comboBox1.Text;
+            _graphForm._stepRoundModifier = 1;
+            if (double.TryParse(minVal_TextBox.Text, out _graphForm._minValue))
+            {
+                _graphForm._stepRoundModifier = Math.Max(_graphForm._stepRoundModifier,
+                    minVal_TextBox.Text.SkipWhile(c => c != ',').Skip(1).Count());
+            }
+            else
+                _graphForm._minValue = 0;
+            if (double.TryParse(maxVal_TextBox.Text, out _graphForm._maxValue))
+            {
+                _graphForm._stepRoundModifier = Math.Max(_graphForm._stepRoundModifier,
+                    maxVal_TextBox.Text.SkipWhile(c => c != '.').Skip(1).Count());
+            }
+            else
+                _graphForm._maxValue = 10;
+            _graphForm._stepRoundModifier = Math.Pow(10, _graphForm._stepRoundModifier);
+            _graphForm.ShowDialog();
         }
+
+        //private void Form1_MouseClick(object sender, MouseEventArgs e)
+        //{
+        //    Pen pen = new Pen(Color.SlateBlue);
+        //    SolidBrush solid = new SolidBrush(Color.Red);
+        //    g.FillEllipse(solid, e.X, e.Y, 5, 5);
+        //    g.DrawEllipse(pen, e.X, e.Y, 5, 5);
+
+        //    solid.Dispose();
+        //    pen.Dispose();
+        //}
 
         //===========================================
         //===========================================
