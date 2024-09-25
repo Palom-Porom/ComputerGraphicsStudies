@@ -39,7 +39,7 @@
             // difference_pictureBox
             // 
             this.difference_pictureBox.Image = global::RGB_HSV_Lab.Properties.Resources.fruit_test_image;
-            this.difference_pictureBox.Location = new System.Drawing.Point(1058, 79);
+            this.difference_pictureBox.Location = new System.Drawing.Point(1058, 12);
             this.difference_pictureBox.Name = "difference_pictureBox";
             this.difference_pictureBox.Size = new System.Drawing.Size(511, 382);
             this.difference_pictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -49,7 +49,7 @@
             // second_formula_pictureBox
             // 
             this.second_formula_pictureBox.Image = global::RGB_HSV_Lab.Properties.Resources.fruit_test_image;
-            this.second_formula_pictureBox.Location = new System.Drawing.Point(529, 79);
+            this.second_formula_pictureBox.Location = new System.Drawing.Point(529, 12);
             this.second_formula_pictureBox.Name = "second_formula_pictureBox";
             this.second_formula_pictureBox.Size = new System.Drawing.Size(505, 382);
             this.second_formula_pictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -60,7 +60,7 @@
             // first_formula_pictureBox
             // 
             this.first_formula_pictureBox.Image = global::RGB_HSV_Lab.Properties.Resources.fruit_test_image;
-            this.first_formula_pictureBox.Location = new System.Drawing.Point(12, 79);
+            this.first_formula_pictureBox.Location = new System.Drawing.Point(12, 12);
             this.first_formula_pictureBox.Name = "first_formula_pictureBox";
             this.first_formula_pictureBox.Size = new System.Drawing.Size(492, 382);
             this.first_formula_pictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;

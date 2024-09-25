@@ -28,22 +28,12 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.pictureBox2 = new System.Windows.Forms.PictureBox();
             this.desaturate_button = new System.Windows.Forms.Button();
             this.split_channels_button = new System.Windows.Forms.Button();
             this.change_hsv_button = new System.Windows.Forms.Button();
+            this.pictureBox2 = new System.Windows.Forms.PictureBox();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).BeginInit();
             this.SuspendLayout();
-            // 
-            // pictureBox2
-            // 
-            this.pictureBox2.Image = global::RGB_HSV_Lab.Properties.Resources.fruit_test_image;
-            this.pictureBox2.Location = new System.Drawing.Point(1, 12);
-            this.pictureBox2.Name = "pictureBox2";
-            this.pictureBox2.Size = new System.Drawing.Size(800, 350);
-            this.pictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
-            this.pictureBox2.TabIndex = 1;
-            this.pictureBox2.TabStop = false;
             // 
             // desaturate_button
             // 
@@ -63,6 +53,7 @@
             this.split_channels_button.TabIndex = 3;
             this.split_channels_button.Text = "Split to color channels";
             this.split_channels_button.UseVisualStyleBackColor = true;
+            this.split_channels_button.Click += new System.EventHandler(this.split_channels_button_Click);
             // 
             // change_hsv_button
             // 
@@ -72,6 +63,16 @@
             this.change_hsv_button.TabIndex = 4;
             this.change_hsv_button.Text = "Change with HSV";
             this.change_hsv_button.UseVisualStyleBackColor = true;
+            // 
+            // pictureBox2
+            // 
+            this.pictureBox2.Image = global::RGB_HSV_Lab.Properties.Resources.fruit_test_image;
+            this.pictureBox2.Location = new System.Drawing.Point(1, 12);
+            this.pictureBox2.Name = "pictureBox2";
+            this.pictureBox2.Size = new System.Drawing.Size(800, 350);
+            this.pictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            this.pictureBox2.TabIndex = 1;
+            this.pictureBox2.TabStop = false;
             // 
             // Form1
             // 
