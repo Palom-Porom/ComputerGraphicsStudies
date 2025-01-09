@@ -14,6 +14,7 @@ namespace RGB_HSV_Lab
     {
         FormDesaturated _formDesaturated;
         FormSplittedChanels _formSplottedChannels;
+        HSV_form _formHSV;
 
         public Form1()
         {
@@ -23,6 +24,8 @@ namespace RGB_HSV_Lab
             AddOwnedForm(_formDesaturated);
             _formSplottedChannels = new FormSplittedChanels();
             AddOwnedForm(_formSplottedChannels);
+            _formHSV = new HSV_form();
+            AddOwnedForm(_formHSV);
         }
 
         private void desaturate_button_Click(object sender, EventArgs e)
@@ -33,6 +36,11 @@ namespace RGB_HSV_Lab
         private void split_channels_button_Click(object sender, EventArgs e)
         {
             _formSplottedChannels.ShowDialog();
+        }
+
+        private void change_hsv_button_Click(object sender, EventArgs e)
+        {
+            _formHSV.ShowDialog();
         }
     }
 }

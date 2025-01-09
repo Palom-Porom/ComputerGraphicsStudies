@@ -63,6 +63,7 @@
             this.change_hsv_button.TabIndex = 4;
             this.change_hsv_button.Text = "Change with HSV";
             this.change_hsv_button.UseVisualStyleBackColor = true;
+            this.change_hsv_button.Click += new System.EventHandler(this.change_hsv_button_Click);
             // 
             // pictureBox2
             // 

@@ -68,6 +68,12 @@
     <Compile Include="FormSplittedChanels.Designer.cs">
       <DependentUpon>FormSplittedChanels.cs</DependentUpon>
     </Compile>
+    <Compile Include="HSV_form.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="HSV_form.Designer.cs">
+      <DependentUpon>HSV_form.cs</DependentUpon>
+    </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Form1.resx">
@@ -78,6 +84,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="FormSplittedChanels.resx">
       <DependentUpon>FormSplittedChanels.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="HSV_form.resx">
+      <DependentUpon>HSV_form.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
