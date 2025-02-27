@@ -2,6 +2,8 @@
 #include <GL/glew.h>
 #include<iostream>
 
+#define BUFFER_OFFSET(offset) ((void *) (offset))
+
 using namespace std;
 
 //enum VAO_IDs { Triangles, NumVAOs };
@@ -9,20 +11,24 @@ using namespace std;
 //enum Attrib_IDs { vPosition = 0 };
 //
 //GLuint VAOs[NumVAOs];
-//GLuint Buffers[NumBuffers];
+//GLuint Buffers[NumBuffers]; 
 //
 //const GLuint NumVertices = 6;
+
 
 GLuint Program;
 GLint Attrib_vertex;
 GLint Attrib_color;
 
 //GLuint VBO;
+enum VAO_IDs {RotatedCube, NumVAOs};
 enum Buffer_IDs { VertexBuffer, ColorBuffer, NumBuffers };
 GLuint Buffers[NumBuffers];
 
 //Used for 4.5 version of draw
 GLuint VAO;
+
+GLuint VAOs[NumVAOs];
 
 struct Vertex {
     GLfloat x;
@@ -60,7 +66,7 @@ const char* VertexShaderSource = R"(
     void main()
     {
         gl_Position = vec4(position, 1.0);
-        vertexColor = gl_Position;
+        vertexColor = abs(gl_Position);
     }
 )";
 
@@ -145,6 +151,7 @@ void init_VBO()
         //{ 0.0, 0.0, 0.7 }, { 0.7, 0.0, -0.7 }, { 0.7, -0.7, 0.0 },
         //{ 0.0, -0.7, -0.7 }, { -0.7, 0.0, 0.0 }, { -0.7, -0.7, 0.0 },
         //{ -0.7, 0.0, 0.0 }, { 0.0, -0.7, -0.7 }, { 0.0, 0.7, -0.7 }
+
         { -0.35, -0.7, -0.35 }, { -0.84, 0, 0.14 }, { 0.14, 0, 0.84 },
         { -0.14, 0, 0.84 }, { 0.35, -0.7, 0.35 }, { -0.35, -0.7, -0.35 },
         { 0.14, 0, -0.84 }, { 0.35, 0.7, 0.35 }, { -0.35, 0.7, -0.35 },
@@ -178,6 +185,9 @@ void init_VBO()
     //    {1.0, 0.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 0.0, 1.0, 1.0}
     //};
 
+    //
+#pragma region OldCode
+    /*
     glCreateBuffers(NumBuffers, Buffers);
     glNamedBufferStorage(Buffers[VertexBuffer], sizeof(verticies), verticies, 0);
     //glNamedBufferStorage(Buffers[ColorBuffer], sizeof(colors), colors, 0);
@@ -198,6 +208,23 @@ void init_VBO()
     //glVertexArrayAttribFormat(VAO, Attrib_color, 4, GL_FLOAT, GL_FALSE, 0);
     //glVertexArrayAttribBinding(VAO, Attrib_color, 1);
     //glVertexArrayVertexBuffer(VAO, 1, Buffers[ColorBuffer], 0, sizeof(GLfloat) * 4);
+    */
+#pragma endregion
+    
+
+#pragma region After RedBook Code
+
+    glCreateBuffers(NumBuffers, Buffers);
+    glNamedBufferStorage(Buffers[VertexBuffer], sizeof(verticies), verticies, 0);
+
+    glCreateVertexArrays(1, VAOs);
+    
+    glBindVertexArray(VAOs[RotatedCube]);
+    glBindBuffer(GL_ARRAY_BUFFER, Buffers[VertexBuffer]);
+    glVertexAttribPointer(Attrib_vertex, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+    glEnableVertexAttribArray(Attrib_vertex);
+
+#pragma endregion
 
     check_openGL_error();
 }
@@ -227,6 +254,7 @@ void Draw()
 #pragma endregion
 
 #pragma region OpenGL 4.5 (with Direct State Access) variant
+    /*
     glUseProgram(Program);
     glBindVertexArray(VAO);
 
@@ -234,8 +262,19 @@ void Draw()
 
     glBindVertexArray(0);
     glUseProgram(0);
+    */
 #pragma endregion
 
+#pragma region After RedBook
+    glUseProgram(Program);
+    glBindVertexArray(VAOs[RotatedCube]);
+
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    glBindVertexArray(0);
+    glUseProgram(0);
+
+#pragma endregion
 
 
     //OpenGL 4.5 (with using Direct State Access) variant
