@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{7102056d-2c4b-4439-8276-86ee812a6396}</ProjectGuid>
-    <RootNamespace>OpenGLGradientFill</RootNamespace>
+    <ProjectGuid>{a6999c84-e793-4060-b9f4-65edb2ea21b7}</ProjectGuid>
+    <RootNamespace>RotatingCube</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

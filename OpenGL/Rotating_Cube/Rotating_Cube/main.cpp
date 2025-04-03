@@ -23,7 +23,7 @@ GLint Attrib_vertex;
 GLint Attrib_color;
 
 //GLuint VBO;
-enum VAO_IDs {RotatedCube, NumVAOs};
+enum VAO_IDs { RotatedCube, NumVAOs };
 enum Buffer_IDs { VertexBuffer, NumBuffers };
 GLuint Buffers[NumBuffers];
 const GLuint VERTICIES_NUM = 8;
@@ -34,6 +34,8 @@ GLuint VAO;
 //glm::mat4 test;
 
 GLuint VAOs[NumVAOs];
+
+GLint Uniform_rotation;
 
 struct Vertex {
     GLfloat pos[3];
@@ -60,7 +62,7 @@ glm::mat4 get_rotation_matrix(float angle_degrees, int axis = 0)
     res[(axis + 1) % 3][(axis + 2) % 3] = sinTheta;
     res[(axis + 2) % 3][(axis + 1) % 3] = -sinTheta;
     res[(axis + 2) % 3][(axis + 2) % 3] = cosTheta;
-    
+
     return res;
 }
 
@@ -90,12 +92,17 @@ void ShaderLog(unsigned int shader)
 //abs(vec4(1.0, 1.0, 1.0, 1.0) - gl_Position);
 const char* VertexShaderSource = R"(
     #version 330 core
+
     in vec3 position;
     in vec3 clr;
+
+    uniform mat4 rotation;
+
     out vec4 vertexColor;
+
     void main()
     {
-        gl_Position = vec4(position, 1.0);
+        gl_Position = rotation * vec4(position, 1.0);
         vertexColor = vec4(clr, 1.0);
     }
 )";
@@ -161,6 +168,14 @@ void init_shader()
         return;
     }
 
+    const char* uniform_name = "rotation";
+    Uniform_rotation = glGetUniformLocation(Program, uniform_name);
+    if (Uniform_rotation == -1)
+    {
+        cout << "Couldn't bind uniform " << uniform_name << "\n";
+        return;
+    }
+
     check_openGL_error();
 }
 
@@ -219,7 +234,7 @@ void init_VBO()
         vertices[i].rotate(rot_mat2 * rot_mat1);
         //vertices[i].rotate(rot_mat2);
     }
-    
+
 #pragma region OldCode
     /*
     glCreateBuffers(NumBuffers, Buffers);
@@ -266,7 +281,7 @@ void init_VBO()
     glNamedBufferStorage(indexBuffer, sizeof(indices), indices, 0);
 
     glCreateVertexArrays(NumVAOs, VAOs);
-    
+
     glBindVertexArray(VAOs[RotatedCube]);
     glBindBuffer(GL_ARRAY_BUFFER, Buffers[VertexBuffer]);
     glVertexAttribPointer(Attrib_vertex, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(0));
@@ -318,7 +333,6 @@ void Draw()
 #pragma endregion
 
 #pragma region After RedBook
-    glUseProgram(Program);
     glBindVertexArray(VAOs[RotatedCube]);
 
     //glDrawArrays(GL_TRIANGLES, 0, VERTICIES_NUM);
@@ -358,6 +372,10 @@ int main()
     glewInit();
     init();
 
+    float angleX = 0.0f;
+    float angleY = 0.0f;
+    float angleZ = 0.0f;
+
     // Главный цикл
     while (window.isOpen())
     {
@@ -368,9 +386,41 @@ int main()
             // Событие закрытия окна, 
             if (event.type == sf::Event::Closed)
                 window.close();
+            else if (event.type == sf::Event::KeyPressed) {
+                // Y-axis rotation
+                if (event.key.code == sf::Keyboard::A) {
+                    angleY -= 5.0f;
+                }
+                else if (event.key.code == sf::Keyboard::D) {
+                    angleY += 5.0f;
+                }
+                // X-axis rotation
+                if (event.key.code == sf::Keyboard::W) {
+                    angleX -= 5.0f;
+                }
+                else if (event.key.code == sf::Keyboard::S) {
+                    angleX += 5.0f;
+                }
+                // Z-axis rotation
+                if (event.key.code == sf::Keyboard::Q) {
+                    angleZ -= 5.0f;
+                }
+                else if (event.key.code == sf::Keyboard::E) {
+                    angleZ += 5.0f;
+                }
+            }
         }
 
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glm::mat4 rotationX = get_rotation_matrix(angleX, 0);
+        glm::mat4 rotationY = get_rotation_matrix(angleY, 1);
+        glm::mat4 rotationZ = get_rotation_matrix(angleZ, 2);
+        glm::mat4 rotationMatrix = rotationZ * rotationY * rotationX;
+    
+        glUseProgram(Program);
+        glUniformMatrix4fv(Uniform_rotation, 1, GL_FALSE, &rotationMatrix[0][0]);
         Draw();
 
         // Перерисовка окна
