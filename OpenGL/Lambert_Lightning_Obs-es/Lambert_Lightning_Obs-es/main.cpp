@@ -18,8 +18,12 @@ struct ObjData {
     vector<float> colors;
 };
 
-ObjData obj_data;
-string obj_path = "bunny.obj";
+vector<ObjData> loadedObjects;
+vector<string> obj_paths = {
+        "bunny.obj",
+        "cheburashka.obj"
+};
+
 
 GLuint Program;
 GLint Attrib_vertex;
@@ -27,14 +31,14 @@ GLint Attrib_normal;
 GLint Attrib_color;
 
 //GLuint VBO;
-enum VAO_IDs { RotatedCube, NumVAOs };
 enum Buffer_IDs { VertexBuffer, NormalBuffer, ColorBuffer, IndexBuffer, NumBuffers };
 GLuint Buffers[NumBuffers];
 const GLuint VERTICIES_NUM = 8;
 
-GLuint VAOs[NumVAOs];
+vector<GLuint> VAOs, IndexCounts;
 
-glm::mat4 model;
+//glm::mat4 model;
+vector<glm::mat4> modelMatrices;
 glm::mat4 view;
 glm::mat4 projection;
 glm::vec3 lightDir;
@@ -247,7 +251,7 @@ void init_shader()
     check_openGL_error();
 }
 
-void init_VBO(const ObjData& objData)
+void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
 {
     glCreateBuffers(NumBuffers, Buffers);
 
@@ -256,8 +260,7 @@ void init_VBO(const ObjData& objData)
     glNamedBufferStorage(Buffers[ColorBuffer], objData.colors.size() * sizeof(float), objData.colors.data(), 0);
     glNamedBufferStorage(Buffers[IndexBuffer], objData.indices.size() * sizeof(unsigned int), objData.indices.data(), 0);
 
-    glCreateVertexArrays(NumVAOs, VAOs);
-    glBindVertexArray(VAOs[RotatedCube]);
+    glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, Buffers[VertexBuffer]);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
@@ -277,29 +280,50 @@ void init_VBO(const ObjData& objData)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+    indexCount = objData.indices.size();
+
     check_openGL_error();
 }
 
 bool init()
 {
     init_shader();
-    if (!loadOBJ(obj_path, obj_data))
-    {
-        cerr << "Could not load OBJ\n";
-        return false;
+
+    for (const auto& path : obj_paths) {
+        ObjData new_data;
+        if (!loadOBJ(path, new_data)) {
+            cerr << "Could not load OBJ: " << path << endl;
+            return false;
+        }
+        cout << "Loaded " << path << " with "
+            << new_data.positions.size() / 3 << " vertices and "
+            << new_data.indices.size() / 3 << " triangles." << endl;
+
+        if (new_data.normals.empty()) {
+            cerr << "OBJ " << path << " has no normals, generating them..." << endl;
+            computeNormals(new_data);
+        }
+        loadedObjects.push_back(new_data);
     }
-    cout << "Loaded " << obj_data.positions.size() / 3 << " vertices\n";
-    cout << "Loaded " << obj_data.indices.size() / 3 << " triangles\n";
-    if (obj_data.normals.empty()) {
-        cerr << "OBJ has no normals, generating them...\n";
-        computeNormals(obj_data);
+
+    VAOs.resize(loadedObjects.size());
+    glCreateVertexArrays(loadedObjects.size(), VAOs.data());
+    IndexCounts.resize(loadedObjects.size());
+
+    for (size_t i = 0; i < loadedObjects.size(); ++i) {
+        init_VBO(loadedObjects[i], VAOs[i], IndexCounts[i]);
     }
-    init_VBO(obj_data);
+
     glEnable(GL_DEPTH_TEST);
 
-    model = glm::mat4(1.0f);
+    //model = glm::mat4(1.0f);
+    for (size_t i = 0; i < loadedObjects.size(); i++) {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(i * 2.0f, 0.0f, 0.0f));
+        modelMatrices.push_back(model);
+    }
     //lookAt(cameraPos, Vector to target, up vector)
-    view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.5f),
+    view = glm::lookAt(glm::vec3(1.0f, 0.8f, 1.8f),
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
     //perspective(FOV, Aspect Ratio, Near plane, Far plane)
@@ -318,14 +342,17 @@ void Draw()
 {
     glUseProgram(Program);
 
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    //glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
 
-    glBindVertexArray(VAOs[RotatedCube]);
+    for (size_t i = 0; i < loadedObjects.size(); ++i) {
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelMatrices[i]));
 
-    glDrawElements(GL_TRIANGLES, obj_data.indices.size(), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(VAOs[i]);
+        glDrawElements(GL_TRIANGLES, IndexCounts[i], GL_UNSIGNED_INT, 0);
+    }
 
     glBindVertexArray(0);
     glUseProgram(0);
@@ -337,6 +364,7 @@ void release_VBO()
 {
     //glBindBuffer(GL_ARRAY_BUFFER, 0);
     glDeleteBuffers(NumBuffers, Buffers);
+    glDeleteVertexArrays(loadedObjects.size(), VAOs.data());
 }
 
 void release_shader()
@@ -399,9 +427,11 @@ int main()
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        model = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-        model = glm::rotate(model, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+        for (size_t i = 0; i < loadedObjects.size(); ++i) {
+            modelMatrices[i] = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
+            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+        }
 
         Draw();
 
