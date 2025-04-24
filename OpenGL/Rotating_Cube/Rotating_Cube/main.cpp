@@ -207,24 +207,23 @@ void init_VBO()
         {{ -0.5, -0.5,  0.5 }, {0, 255, 255}},  // 4: Bottom-front-left
         {{  0.5, -0.5,  0.5 }, {255, 0, 255}},  // 5: Bottom-front-right
         {{  0.5,  0.5,  0.5 }, {255, 255, 255}},// 6: Top-front-right
-        {{ -0.5,  0.5,  0.5 }, {122, 122, 0}},      // 7: Top-front-left
+        {{ -0.5,  0.5,  0.5 }, {122, 122, 0}},  // 7: Top-front-left
     };
 
     GLuint indices[] = {
         // Front face
-        4, 5, 6,  6, 7, 4,
+        4, 6, 5,  4, 7, 6,
         // Back face
-        0, 1, 2,  2, 3, 0,
+        0, 2, 1,  0, 3, 2,
         // Top face
-        3, 2, 6,  6, 7, 3,
+        3, 2, 6,  3, 6, 7,
         // Bottom face
-        0, 1, 5,  5, 4, 0,
+        0, 1, 5,  0, 5, 4,
         // Right face
-        1, 5, 6,  6, 2, 1,
+        6, 1, 5,  6, 2, 1,
         // Left face
-        0, 4, 7,  7, 3, 0
+        7, 4, 0,  7, 0, 3
     };
-
 
 
     glm::mat4 rot_mat1 = get_rotation_matrix(30, 1);
@@ -300,7 +299,10 @@ void init()
 {
     init_shader();
     init_VBO();
+    //glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
+    //glDepthFunc(GL_LESS);
+    //glDisable(GL_CULL_FACE);
 }
 
 void Draw()
@@ -367,7 +369,7 @@ int main()
     contextSettings.depthBits = 24; // Request a 24-bit depth buffer
 
     // Создаём окно
-    sf::RenderWindow window(sf::VideoMode(600, 600), "SFML window");
+    sf::RenderWindow window(sf::VideoMode(600, 600), "SFML window", 7U, contextSettings);
 
     glewInit();
     init();
@@ -421,7 +423,9 @@ int main()
     
         glUseProgram(Program);
         glUniformMatrix4fv(Uniform_rotation, 1, GL_FALSE, &rotationMatrix[0][0]);
+        //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         Draw();
+        //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         // Перерисовка окна
         window.display();

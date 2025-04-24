@@ -378,7 +378,7 @@ int main()
     contextSettings.depthBits = 24; // Request a 24-bit depth buffer
 
     // Создаём окно
-    sf::RenderWindow window(sf::VideoMode(600, 600), "SFML window");
+    sf::RenderWindow window(sf::VideoMode(600, 600), "SFML window", 7U, contextSettings);
 
     glewInit();
     init();
