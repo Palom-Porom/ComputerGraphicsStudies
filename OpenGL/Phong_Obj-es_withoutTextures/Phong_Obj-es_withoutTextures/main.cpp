@@ -24,20 +24,17 @@ vector<string> obj_paths = {
         "cheburashka.obj"
 };
 
-
 GLuint Program;
 GLint Attrib_vertex;
 GLint Attrib_normal;
 GLint Attrib_color;
 
-//GLuint VBO;
 enum Buffer_IDs { VertexBuffer, NormalBuffer, ColorBuffer, IndexBuffer, NumBuffers };
 GLuint Buffers[NumBuffers];
 const GLuint VERTICIES_NUM = 8;
 
 vector<GLuint> VAOs, IndexCounts;
 
-//glm::mat4 model;
 vector<glm::mat4> modelMatrices;
 glm::mat4 view;
 glm::mat4 projection;
@@ -47,6 +44,19 @@ GLint modelLoc;
 GLint viewLoc;
 GLint projLoc;
 GLint lightDirLoc;
+
+glm::vec3 cameraPos(1.0f, 0.8f, 1.8f);
+glm::vec3 cameraFront(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp(0.0f, 1.0f, 0.0f);
+glm::vec3 cameraRight;
+float cameraHorAngle = -90.0f;
+float cameraVerAngle = 0.0f;
+float cameraSpeed = 0.001f;
+float cameraTurnSpeed = 3.0f;
+
+float lightHorAngle = glm::radians(0.0f);
+float lightVerAngle = glm::radians(-45.0f);
+float lightAngleSpeed = glm::radians(0.1f);
 
 void check_openGL_error()
 {
@@ -177,34 +187,42 @@ const char* VertexShaderSource = R"(
     uniform vec3 lightDir;
      
     out vec3 Color; 
-    out vec3 LightDiff;     
+    out vec3 Normal;
+    out vec3 LightDir;
+    out vec3 FragPos;     
 
     void main() {
         gl_Position = projection * view * model * vec4(position, 1.0);
-    
-        vec3 Normal = mat3(transpose(inverse(model))) * normal;
+        FragPos = vec3(model * vec4(position, 1.0));
+        Normal = mat3(transpose(inverse(model))) * normal;
         Normal = normalize(Normal);
-    
-        LightDiff = max(dot(Normal, lightDir), 0.0) * vec3(1.0f, 1.0f, 1.0f);
-
+        LightDir = normalize(-lightDir);
         Color = color;
-}
+    }
 )";
 
 const char* FragShaderSource = R"(
  #version 330 core
 
- in vec3 LightDiff;
+ in vec3 LightDir;
  in vec3 Color;
+ in vec3 Normal;
+ in vec3 FragPos;
 
  out vec4 color;
 
  void main() 
 {
-    vec3 ambient = 0.1f * vec3(1.0f, 1.0f, 1.0f);
-
-    vec3 resultingColor = (ambient + LightDiff) * Color;
-    color = vec4(resultingColor, 1.0f);
+    vec3 finalColor = Color;
+    vec3 ambient = 0.1f * finalColor;
+    float diff = max(dot(Normal, LightDir), 0.0);
+    vec3 diffuse = diff * finalColor;
+    vec3 viewDir = normalize(-FragPos);
+    vec3 reflectDir = reflect(-LightDir, Normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+    vec3 specular = vec3(0.8) * spec;
+    vec3 resultingColor = (ambient + diffuse + specular);
+    color = vec4(resultingColor, 1.0);
  }
 )";
 
@@ -212,18 +230,14 @@ void init_shader()
 {
     //Vertex shader
     GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
-    //Set the source code
     glShaderSource(vShader, 1, &VertexShaderSource, NULL);
-    //Compile
     glCompileShader(vShader);
     cout << "Vertex Shader is compiled!\n";
     ShaderLog(vShader);
 
     //Fragment shader
     GLuint fShader = glCreateShader(GL_FRAGMENT_SHADER);
-    //Set the source code
     glShaderSource(fShader, 1, &FragShaderSource, NULL);
-    //Compile
     glCompileShader(fShader);
     cout << "Fragment Shader is compiled!\n";
     ShaderLog(fShader);
@@ -285,24 +299,25 @@ void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
     check_openGL_error();
 }
 
-bool init() 
+bool init()
 {
     init_shader();
 
-    for (const auto& path : obj_paths) {
+    for (int i = 0; i < obj_paths.size(); i++) {
         ObjData new_data;
-        if (!loadOBJ(path, new_data)) {
-            cerr << "Could not load OBJ: " << path << endl;
+        if (!loadOBJ(obj_paths[i], new_data)) {
+            cerr << "Could not load OBJ: " << obj_paths[i] << endl;
             return false;
         }
-        cout << "Loaded " << path << " with "
+        cout << "Loaded " << obj_paths[i] << " with "
             << new_data.positions.size() / 3 << " vertices and "
             << new_data.indices.size() / 3 << " triangles." << endl;
 
         if (new_data.normals.empty()) {
-            cerr << "OBJ " << path << " has no normals, generating them..." << endl;
+            cerr << "OBJ " << obj_paths[i] << " has no normals, generating them..." << endl;
             computeNormals(new_data);
         }
+
         loadedObjects.push_back(new_data);
     }
 
@@ -312,28 +327,23 @@ bool init()
 
     for (size_t i = 0; i < loadedObjects.size(); ++i) {
         init_VBO(loadedObjects[i], VAOs[i], IndexCounts[i]);
+        if (glGetError() != GL_NO_ERROR) {
+            cerr << "Failed to initialize VBO for object " << i << endl;
+            return false;
+        }
     }
 
     glEnable(GL_DEPTH_TEST);
 
-    //model = glm::mat4(1.0f);
     for (size_t i = 0; i < loadedObjects.size(); i++) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(i * 2.0f, 0.0f, 0.0f));
         modelMatrices.push_back(model);
     }
-    //lookAt(cameraPos, Vector to target, up vector)
-    view = glm::lookAt(glm::vec3(1.0f, 0.8f, 1.8f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
-    //perspective(FOV, Aspect Ratio, Near plane, Far plane)
     projection = glm::perspective(glm::radians(45.0f),
         800.0f / 600.0f,
         0.1f,
         100.0f);
-
-    lightDir = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.5f));
-    lightDir = glm::normalize(-lightDir); //Rotate TO the sun
 
     return true;
 }
@@ -342,14 +352,12 @@ void Draw()
 {
     glUseProgram(Program);
 
-    //glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
 
     for (size_t i = 0; i < loadedObjects.size(); ++i) {
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelMatrices[i]));
-
         glBindVertexArray(VAOs[i]);
         glDrawElements(GL_TRIANGLES, IndexCounts[i], GL_UNSIGNED_INT, 0);
     }
@@ -362,7 +370,6 @@ void Draw()
 
 void release_VBO()
 {
-    //glBindBuffer(GL_ARRAY_BUFFER, 0);
     glDeleteBuffers(NumBuffers, Buffers);
     glDeleteVertexArrays(loadedObjects.size(), VAOs.data());
 }
@@ -378,64 +385,85 @@ int main()
     sf::ContextSettings contextSettings;
     contextSettings.depthBits = 24; // Request a 24-bit depth buffer
 
-    // Создаём окно
     sf::RenderWindow window(sf::VideoMode(600, 600), "SFML window", sf::Style::Default, contextSettings);
 
     glewInit();
     if (!init())
         return -1;
 
-    float angleX = 0.0f;
-    float angleY = 0.0f;
-    float angleZ = 0.0f;
+    window.setMouseCursorGrabbed(true);
+    window.setMouseCursorVisible(false);
 
-    // Главный цикл
+    sf::Vector2i windowCenter(window.getSize().x / 2, window.getSize().y / 2);
+    sf::Mouse::setPosition(windowCenter, window);
+    float mouseSensitivity = 0.1f;
+
+    sf::Clock clock;
+
     while (window.isOpen())
     {
         sf::Event event;
-        // Цикл обработки событий
         while (window.pollEvent(event))
         {
-            // Событие закрытия окна, 
             if (event.type == sf::Event::Closed)
                 window.close();
-            else if (event.type == sf::Event::KeyPressed) {
-                // Y-axis rotation
-                if (event.key.code == sf::Keyboard::A) {
-                    angleY -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::D) {
-                    angleY += 5.0f;
-                }
-                // X-axis rotation
-                if (event.key.code == sf::Keyboard::W) {
-                    angleX -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::S) {
-                    angleX += 5.0f;
-                }
-                // Z-axis rotation
-                if (event.key.code == sf::Keyboard::Q) {
-                    angleZ -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::E) {
-                    angleZ += 5.0f;
-                }
+
+            sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+            int dx = mousePos.x - windowCenter.x;
+            int dy = mousePos.y - windowCenter.y;
+            sf::Mouse::setPosition(windowCenter, window);
+
+            if (dx != 0 || dy != 0)
+            {
+                cameraHorAngle += dx * mouseSensitivity;
+                cameraVerAngle -= dy * mouseSensitivity;
+                if (cameraVerAngle > 89.0f) cameraVerAngle = 89.0f;
+                if (cameraVerAngle < -89.0f) cameraVerAngle = -89.0f;
+
+                float verRad = glm::radians(cameraVerAngle);
+                float horRad = glm::radians(cameraHorAngle);
+                cameraFront = glm::normalize(glm::vec3(
+                    cos(horRad) * cos(verRad),
+                    sin(verRad),
+                    sin(horRad) * cos(verRad)
+                ));
             }
         }
+
+        float deltaTime = (clock.restart().asMicroseconds()) / 1000.0f;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+            cameraPos += cameraSpeed * cameraFront * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+            cameraPos -= cameraSpeed * cameraFront * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+            cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+            cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * deltaTime;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))
+            cameraPos += cameraSpeed * cameraUp * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
+            cameraPos -= cameraSpeed * cameraUp * deltaTime;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            lightHorAngle -= lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+            lightHorAngle += lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+            lightVerAngle -= lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+            lightVerAngle += lightAngleSpeed * deltaTime;
+
+        lightDir = glm::normalize(glm::vec3(cos(lightHorAngle) * cos(lightVerAngle), sin(lightVerAngle), sin(lightHorAngle) * cos(lightVerAngle)));
+
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        for (size_t i = 0; i < loadedObjects.size(); ++i) {
-            modelMatrices[i] = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-        }
-
         Draw();
 
-        // Перерисовка окна
         window.display();
     }
 

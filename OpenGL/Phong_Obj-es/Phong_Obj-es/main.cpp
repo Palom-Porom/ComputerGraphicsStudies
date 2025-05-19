@@ -16,14 +16,22 @@ struct ObjData {
     vector<float> normals;
     vector<unsigned int> indices;
     vector<float> colors;
+    vector<float> texCoords;
+    GLuint textureID;
 };
 
 vector<ObjData> loadedObjects;
 vector<string> obj_paths = {
+        //"tiger.obj",
         "bunny.obj",
-        "cheburashka.obj"
+        //"cheburashka.obj"
 };
-
+vector<const char*> obj_textures_paths = {
+        //"tiger.jpg",
+        "bunny.png",
+        //"cheburashka.jpeg"
+};
+vector<GLuint> obj_textures;
 
 GLuint Program;
 GLint Attrib_vertex;
@@ -33,6 +41,7 @@ GLint Attrib_color;
 //GLuint VBO;
 enum Buffer_IDs { VertexBuffer, NormalBuffer, ColorBuffer, IndexBuffer, NumBuffers };
 GLuint Buffers[NumBuffers];
+GLuint texCoordBuffer;
 const GLuint VERTICIES_NUM = 8;
 
 vector<GLuint> VAOs, IndexCounts;
@@ -47,6 +56,19 @@ GLint modelLoc;
 GLint viewLoc;
 GLint projLoc;
 GLint lightDirLoc;
+
+glm::vec3 cameraPos(1.0f, 0.8f, 1.8f);
+glm::vec3 cameraFront(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp(0.0f, 1.0f, 0.0f); 
+glm::vec3 cameraRight; 
+float cameraHorAngle = -90.0f;   
+float cameraVerAngle = 0.0f;   
+float cameraSpeed = 0.001f; 
+float cameraTurnSpeed = 3.0f; 
+
+float lightHorAngle = glm::radians(0.0f);
+float lightVerAngle = glm::radians(-45.0f);
+float lightAngleSpeed = glm::radians(0.1f);
 
 void check_openGL_error()
 {
@@ -144,6 +166,10 @@ bool loadOBJ(const string& filename, ObjData& objData)
 
     objData.positions = attrib.vertices;
 
+    if (!attrib.texcoords.empty()) {
+        objData.texCoords = attrib.texcoords;
+    }
+
     if (!attrib.normals.empty()) {
         objData.normals = attrib.normals;
     }
@@ -156,12 +182,38 @@ bool loadOBJ(const string& filename, ObjData& objData)
 
     objData.colors.resize(objData.positions.size());
     for (size_t i = 0; i < objData.colors.size() / 3; ++i) {
-        objData.colors[3 * i] = 0.2f;
-        objData.colors[3 * i + 1] = 0.8f;
-        objData.colors[3 * i + 2] = 0.2f;
+        objData.colors[3 * i] = 1.0f;
+        objData.colors[3 * i + 1] = 1.0f;
+        objData.colors[3 * i + 2] = 1.0f;
     }
 
     return true;
+}
+
+GLuint loadTexture(const char* path) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    sf::Image image;
+    if (!image.loadFromFile(path)) {
+        cerr << "Failed to load texture: " << path << endl;
+        glDeleteTextures(1, &textureID);
+        return 0;
+    }
+
+    image.flipVertically();
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.getSize().x, image.getSize().y,
+        0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    return textureID;
 }
 
 const char* VertexShaderSource = R"(
@@ -170,6 +222,7 @@ const char* VertexShaderSource = R"(
     layout(location = 0) in vec3 position;
     layout(location = 1) in vec3 normal;
     layout(location = 2) in vec3 color;
+    layout(location = 3) in vec2 texCoord;
 
     uniform mat4 model;
     uniform mat4 view;
@@ -177,34 +230,53 @@ const char* VertexShaderSource = R"(
     uniform vec3 lightDir;
      
     out vec3 Color; 
-    out vec3 LightDiff;     
+    out vec3 Normal;
+    out vec3 LightDir;
+    out vec3 FragPos;     
+    out vec2 TexCoord; 
 
     void main() {
-        gl_Position = projection * view * model * vec4(position, 1.0);
+    gl_Position = projection * view * model * vec4(position, 1.0);
     
-        vec3 Normal = mat3(transpose(inverse(model))) * normal;
-        Normal = normalize(Normal);
-    
-        LightDiff = max(dot(Normal, lightDir), 0.0) * vec3(1.0f, 1.0f, 1.0f);
-
-        Color = color;
-}
+    FragPos = vec3(model * vec4(position, 1.0));
+    Normal = mat3(transpose(inverse(model))) * normal;
+    Normal = normalize(Normal);
+    LightDir = normalize(-lightDir);
+    Color = color;
+    TexCoord = texCoord;
+    }
 )";
 
 const char* FragShaderSource = R"(
  #version 330 core
 
- in vec3 LightDiff;
+ in vec3 LightDir;
  in vec3 Color;
+ in vec3 Normal;
+ in vec3 FragPos;
+ in vec2 TexCoord;
+
+ uniform sampler2D textureSampler;
 
  out vec4 color;
 
  void main() 
 {
-    vec3 ambient = 0.1f * vec3(1.0f, 1.0f, 1.0f);
+    vec4 texColor = texture(textureSampler, TexCoord);
+    vec3 finalColor = Color * texColor.rgb;
 
-    vec3 resultingColor = (ambient + LightDiff) * Color;
-    color = vec4(resultingColor, 1.0f);
+    vec3 ambient = 0.1f * finalColor;
+
+    float diff = max(dot(Normal, LightDir), 0.0);
+    vec3 diffuse = diff * finalColor;
+
+    vec3 viewDir = normalize(-FragPos);
+    vec3 reflectDir = reflect(-LightDir, Normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+    vec3 specular = vec3(0.8) * spec;
+
+    vec3 resultingColor = (ambient + diffuse + specular);
+    color = vec4(resultingColor, texColor.a);
  }
 )";
 
@@ -260,6 +332,11 @@ void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
     glNamedBufferStorage(Buffers[ColorBuffer], objData.colors.size() * sizeof(float), objData.colors.data(), 0);
     glNamedBufferStorage(Buffers[IndexBuffer], objData.indices.size() * sizeof(unsigned int), objData.indices.data(), 0);
 
+    if (!objData.texCoords.empty()) {
+        glCreateBuffers(1, &texCoordBuffer);
+        glNamedBufferStorage(texCoordBuffer, objData.indices.size() * sizeof(float), objData.texCoords.data(), 0);
+    }
+
     glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, Buffers[VertexBuffer]);
@@ -274,6 +351,12 @@ void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
     glEnableVertexAttribArray(2);
 
+    if (!objData.texCoords.empty()) {
+        glBindBuffer(GL_ARRAY_BUFFER, texCoordBuffer);
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+        glEnableVertexAttribArray(3);
+    }
+
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Buffers[IndexBuffer]);
 
     glBindVertexArray(0);
@@ -285,24 +368,31 @@ void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
     check_openGL_error();
 }
 
-bool init() 
+bool init()
 {
     init_shader();
 
-    for (const auto& path : obj_paths) {
+    for (int i = 0; i < obj_paths.size(); i++) {
         ObjData new_data;
-        if (!loadOBJ(path, new_data)) {
-            cerr << "Could not load OBJ: " << path << endl;
+        if (!loadOBJ(obj_paths[i], new_data)) {
+            cerr << "Could not load OBJ: " << obj_paths[i] << endl;
             return false;
         }
-        cout << "Loaded " << path << " with "
+        cout << "Loaded " << obj_paths[i] << " with "
             << new_data.positions.size() / 3 << " vertices and "
             << new_data.indices.size() / 3 << " triangles." << endl;
 
         if (new_data.normals.empty()) {
-            cerr << "OBJ " << path << " has no normals, generating them..." << endl;
+            cerr << "OBJ " << obj_paths[i] << " has no normals, generating them..." << endl;
             computeNormals(new_data);
         }
+
+        new_data.textureID = loadTexture(obj_textures_paths[i]);
+        if (new_data.textureID == 0) {
+            return false;
+        }
+        //obj_textures.push_back(new_data.textureID);
+        
         loadedObjects.push_back(new_data);
     }
 
@@ -312,6 +402,10 @@ bool init()
 
     for (size_t i = 0; i < loadedObjects.size(); ++i) {
         init_VBO(loadedObjects[i], VAOs[i], IndexCounts[i]);
+        if (glGetError() != GL_NO_ERROR) {
+            cerr << "Failed to initialize VBO for object " << i << endl;
+            return false;
+        }
     }
 
     glEnable(GL_DEPTH_TEST);
@@ -323,17 +417,19 @@ bool init()
         modelMatrices.push_back(model);
     }
     //lookAt(cameraPos, Vector to target, up vector)
-    view = glm::lookAt(glm::vec3(1.0f, 0.8f, 1.8f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
+    //view = glm::lookAt(glm::vec3(1.0f, 0.8f, 1.8f),
+    //    glm::vec3(0.0f, 0.0f, 0.0f),
+    //    glm::vec3(0.0f, 1.0f, 0.0f));
     //perspective(FOV, Aspect Ratio, Near plane, Far plane)
     projection = glm::perspective(glm::radians(45.0f),
         800.0f / 600.0f,
         0.1f,
         100.0f);
 
-    lightDir = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.5f));
-    lightDir = glm::normalize(-lightDir); //Rotate TO the sun
+    //lightDir = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.5f));
+    //lightDir = glm::normalize(-lightDir); //Rotate TO the sun
+
+    //cameraRight = glm::normalize(glm::cross(cameraFront, cameraUp));
 
     return true;
 }
@@ -348,6 +444,10 @@ void Draw()
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
 
     for (size_t i = 0; i < loadedObjects.size(); ++i) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, loadedObjects[i].textureID);
+        glUniform1i(glGetUniformLocation(Program, "textureSampler"), 0);
+
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelMatrices[i]));
 
         glBindVertexArray(VAOs[i]);
@@ -385,9 +485,18 @@ int main()
     if (!init())
         return -1;
 
-    float angleX = 0.0f;
-    float angleY = 0.0f;
-    float angleZ = 0.0f;
+    //float angleX = 0.0f;
+    //float angleY = 0.0f;
+    //float angleZ = 0.0f;
+
+    window.setMouseCursorGrabbed(true);
+    window.setMouseCursorVisible(false);
+
+    sf::Vector2i windowCenter(window.getSize().x / 2, window.getSize().y / 2);
+    sf::Mouse::setPosition(windowCenter, window);
+    float mouseSensitivity = 0.1f;
+
+    sf::Clock clock;
 
     // Главный цикл
     while (window.isOpen())
@@ -399,39 +508,69 @@ int main()
             // Событие закрытия окна, 
             if (event.type == sf::Event::Closed)
                 window.close();
-            else if (event.type == sf::Event::KeyPressed) {
-                // Y-axis rotation
-                if (event.key.code == sf::Keyboard::A) {
-                    angleY -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::D) {
-                    angleY += 5.0f;
-                }
-                // X-axis rotation
-                if (event.key.code == sf::Keyboard::W) {
-                    angleX -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::S) {
-                    angleX += 5.0f;
-                }
-                // Z-axis rotation
-                if (event.key.code == sf::Keyboard::Q) {
-                    angleZ -= 5.0f;
-                }
-                else if (event.key.code == sf::Keyboard::E) {
-                    angleZ += 5.0f;
-                }
+
+
+            sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+            int dx = mousePos.x - windowCenter.x;
+            int dy = mousePos.y - windowCenter.y;
+            sf::Mouse::setPosition(windowCenter, window);
+
+            if (dx != 0 || dy != 0)
+            {
+                cameraHorAngle += dx * mouseSensitivity;
+                cameraVerAngle -= dy * mouseSensitivity;
+                if (cameraVerAngle > 89.0f) cameraVerAngle = 89.0f;
+                if (cameraVerAngle < -89.0f) cameraVerAngle = -89.0f;
+
+                float verRad = glm::radians(cameraVerAngle);
+                float horRad = glm::radians(cameraHorAngle);
+                cameraFront = glm::normalize(glm::vec3(
+                    cos(horRad) * cos(verRad),
+                    sin(verRad),
+                    sin(horRad) * cos(verRad)
+                ));
+
+                //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
             }
         }
+
+        float deltaTime = (clock.restart().asMicroseconds()) / 1000.0f;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+            cameraPos += cameraSpeed * cameraFront * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+            cameraPos -= cameraSpeed * cameraFront * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+            cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+            cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed * deltaTime;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))
+            cameraPos += cameraSpeed * cameraUp * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
+            cameraPos -= cameraSpeed * cameraUp * deltaTime;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            lightHorAngle -= lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+            lightHorAngle += lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+            lightVerAngle -= lightAngleSpeed * deltaTime;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+            lightVerAngle += lightAngleSpeed * deltaTime;
+
+        lightDir = glm::normalize(glm::vec3(cos(lightHorAngle) * cos(lightVerAngle), sin(lightVerAngle), sin(lightHorAngle) * cos(lightVerAngle)));
+
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        for (size_t i = 0; i < loadedObjects.size(); ++i) {
-            modelMatrices[i] = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-            modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-        }
+        //for (size_t i = 0; i < loadedObjects.size(); ++i) {
+        //    modelMatrices[i] = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
+        //    modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+        //    modelMatrices[i] = glm::rotate(modelMatrices[i], glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+        //}
 
         Draw();
 
@@ -441,6 +580,9 @@ int main()
 
     release_shader();
     release_VBO();
+    for (auto& obj : loadedObjects) {
+        glDeleteTextures(1, &obj.textureID);
+    }
 
     return 0;
 }
