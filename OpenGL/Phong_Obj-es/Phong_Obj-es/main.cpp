@@ -23,12 +23,18 @@ struct ObjData {
 vector<ObjData> loadedObjects;
 vector<string> obj_paths = {
         //"tiger.obj",
-        "bunny.obj",
+        "pineapple2.obj",
+        //"bunny.obj",
+        //"shkaf.obj",
+        //"Skull.obj",
         //"cheburashka.obj"
 };
 vector<const char*> obj_textures_paths = {
         //"tiger.jpg",
-        "bunny.png",
+        "pineapple2.jpg",
+        //"bunny.png",
+        //"shkaf.jpg",
+        //"Skull.jpg",
         //"cheburashka.jpeg"
 };
 vector<GLuint> obj_textures;
@@ -63,7 +69,7 @@ glm::vec3 cameraUp(0.0f, 1.0f, 0.0f);
 glm::vec3 cameraRight; 
 float cameraHorAngle = -90.0f;   
 float cameraVerAngle = 0.0f;   
-float cameraSpeed = 0.001f; 
+float cameraSpeed = 0.01f; 
 float cameraTurnSpeed = 3.0f; 
 
 float lightHorAngle = glm::radians(0.0f);
@@ -202,7 +208,7 @@ GLuint loadTexture(const char* path) {
         return 0;
     }
 
-    image.flipVertically();
+    //image.flipVertically();
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.getSize().x, image.getSize().y,
         0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
@@ -334,7 +340,7 @@ void init_VBO(const ObjData& objData, GLuint& VAO, GLuint& indexCount)
 
     if (!objData.texCoords.empty()) {
         glCreateBuffers(1, &texCoordBuffer);
-        glNamedBufferStorage(texCoordBuffer, objData.indices.size() * sizeof(float), objData.texCoords.data(), 0);
+        glNamedBufferStorage(texCoordBuffer, objData.texCoords.size() * sizeof(float), objData.texCoords.data(), 0);
     }
 
     glBindVertexArray(VAO);
@@ -387,12 +393,19 @@ bool init()
             computeNormals(new_data);
         }
 
-        new_data.textureID = loadTexture(obj_textures_paths[i]);
-        if (new_data.textureID == 0) {
-            return false;
+        if (obj_textures_paths.size() <= i)
+        {
+            cout << obj_paths[i] << " has no texture!\n";
         }
-        //obj_textures.push_back(new_data.textureID);
-        
+        else
+        {
+            new_data.textureID = loadTexture(obj_textures_paths[i]);
+            if (new_data.textureID == 0) {
+                cerr << "Failed to load texture: " << obj_textures_paths[i] << endl;
+                return false;
+            }
+            //obj_textures.push_back(new_data.textureID);
+        }
         loadedObjects.push_back(new_data);
     }
 
@@ -414,6 +427,7 @@ bool init()
     for (size_t i = 0; i < loadedObjects.size(); i++) {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(i * 2.0f, 0.0f, 0.0f));
+        //model = glm::mat4(1.0f);
         modelMatrices.push_back(model);
     }
     //lookAt(cameraPos, Vector to target, up vector)
